@@ -209,11 +209,385 @@ std::unique_ptr<Entity> entity(new Entity());
 
 更推荐的方法是：`std::unique_ptr<Entity> entity1 = std::make_unique<Entity>();`，这么些是为了保证exception safety，防止我们创建的unique pointer不够健壮，造成内存泄漏等。
 
+尝试复制unique pointer报错：
+
+![image-20211201100738345](E:\newbie\cpp_code\images\image-20211201100738345.png)
+
+这是因为在源码中等号赋值和引用都被删除了。
+
+![image-20211201100851190](E:\newbie\cpp_code\images\image-20211201100851190.png)
+
+### 36.2 Shared pointer
+
+智能指针使用引用计数的方法，他的运行逻辑是一直统计应用那个指针的个数，当用用个数为0时，指针所指向的空间被释放。也就是说先创建一个shared pointer，然后再创建一个shared pointer并复制第一个指针，那么指向同一块内存的指针就有两个了，当地一个指针被释放，引用的个数减去一，当作后一个指针被释放，引用的个数变为0，内存被释放。
+
+shared pointer的定义：
+
+```c++
+//std::shared_ptr<Entity> sharedEntity(new Entity());
+std::shared_ptr<Entity> sharedEntity = std::make_shared<Entity>();
+```
+
+坚决不能采用第一种方式来定义shared pointer，因为shared pointer会分配一个control block来存储引用个数，如果我们先new一个Entity然后再传给shared pointer，他需要重新进行分配，就会执行两次内存分配。如果直接使用第二种定义方式就能同时把两个内存都分配了，效率更高。
+
+另外对于讨厌new关键字的开发者，shared pointer显然摒弃了new关键字，因为我们是直接调用std::make_shared
+
+![image-20211201103237563](E:\newbie\cpp_code\images\image-20211201103237563.png)
+
+### 36.3 Weak pointer
+
+他有点像shared pointer，也可以进行复制，当我们把一个shared pointer复制给它时，他只会指向相同的内存，却不会使引用个数加一，也就是说它只能用来查看那个指针是否存在，但不能控制使得指针存在，即当weak pointer指针指向的shared pointer的所有正常引用都被清理了，只剩下weak pointer，那么这个指针同样会被释放掉。因此weak pointer不会影响shared pointer的生命周期。
+
+当执行到第26行时，由于entity所有的引用都被清理了，即使weakEntity1是在域外，那所指向的空间同样被释放了，就会显示expired，即不能使用了。
+
+![image-20211201104107030](E:\newbie\cpp_code\images\image-20211201104107030.png)
+
+```c++
+#include <iostream>
+#include <string>
+#include <memory>
+
+class Entity
+{
+public:
+	Entity() { std::cout << "Created Entity!" << std::endl; }
+	~Entity() { std::cout << "Destroyed Entity!" << std::endl; }
+
+	void Print() {}
+};
+
+int main()
+{
+	{
+		std::shared_ptr<Entity> sharedEntity0;
+		std::weak_ptr<Entity> weakEntity1;
+		{
+			std::unique_ptr<Entity> entity = std::make_unique<Entity>();
+			entity->Print();
+
+			std::shared_ptr<Entity> sharedEntity = std::make_shared<Entity>();
+			//sharedEntity0 = sharedEntity;
+			weakEntity1 = sharedEntity;
+		}
+	}
+	std::cin.get();
+
+}
+```
+
+当然我们可以询问一个weak pointer你是否还是有效的。
+
+当我们想在heap中分配空间，但又不想操纵详细的生命周期和内存空间时，推荐使用智能指针，特殊的pointer的选择顺序：unique pointer优先于shared pointer。但他又不能完全替代new delete，当我们想操纵详细的生命周期和内存空间时当然还是使用new delete。
 
 
 
+## 37. Copying and copy constructors in C++
 
+Copying是指复制数据复制内存，也就是说他处理的结果是有两份内存。有时我们想要复制对象并修改其中内容，为了避免不必要的复制，因为复制是需要花费时间的，我们只是想读取他的内存并修改已经存在的对象。
 
+### 37.1 Copying
+
+```c++
+#include <iostream>
+#include <string>
+
+struct Vector2 
+{
+	float x, y;
+};
+
+int main()
+{
+	int a = 2;
+	int b = a;
+	b = 3;
+
+	Vector2 c = { 2, 3 };
+	Vector2 d = c;
+
+	Vector2* e = new Vector2();
+	Vector2* f= e;
+	f->x = 5;
+
+	std::cin.get();
+}
+```
+
+![image-20211201142725431](E:\newbie\cpp_code\images\image-20211201142725431.png)
+
+只有e和f指向同一块内存，这是因为它复制的是指针。
+
+总的来说，抛去引用当我们在写代码时，把一个变量赋值给另一个变量总是在copying，对于变量和指针变量的区别是，指针变量copying的是指针地址（以数值表示的内存地址）而不是实际的指针指向的内存。
+
+### 37.2 浅拷贝
+
+下面给出一个示例：创建一个String类，并支持它的输出。
+
+```c++
+#include <iostream>
+#include <string>
+
+class String
+{
+private:
+	char* m_Buffer;
+	unsigned int m_Size;
+public:
+	String(const char* string)
+	{
+		m_Size = strlen(string);
+		m_Buffer = new char[m_Size];
+		memcpy(m_Buffer, string, m_Size);
+	}
+
+	friend std::ostream& operator<<(std::ostream& stream, const String& string);
+};
+
+std::ostream& operator<<(std::ostream& stream, const String& string)
+{
+	stream << string.m_Buffer;
+	return stream;
+}
+
+int main()
+{
+	String string = "Melissa";
+	std::cout << string << std::endl;
+
+	std::cin.get();
+}
+```
+
+1. 查看输出结果发现，会有一连串位置符号，这是因为我们在存储字符时忘记存入终止符了。
+
+   ![image-20211201144519281](E:\newbie\cpp_code\images\image-20211201144519281.png)
+
+   一种方法是给string array多加1：
+
+   ![image-20211201144735934](E:\newbie\cpp_code\images\image-20211201144735934.png)
+
+   或者是直接给字符串为后面增加一个null。
+
+   ![image-20211201145020981](E:\newbie\cpp_code\images\image-20211201145020981.png)
+
+   这样处理后打印出来就是正常的。
+
+2. 但是在上面的String类中使用new创建了新的字符串并未销毁，可能会造成内存泄漏，因此需要在类的析构函数中进行delete，完整的类如下：
+
+   ```c++
+   class String
+   {
+   private:
+   	char* m_Buffer;
+   	unsigned int m_Size;
+   public:
+   	String(const char* string)
+   	{
+   		m_Size = strlen(string);
+   		m_Buffer = new char[m_Size];
+   		memcpy(m_Buffer, string, m_Size);
+   		m_Buffer[m_Size] = 0;
+   	}
+   	~String()
+   	{
+   		delete[] m_Buffer;
+   	}
+       char& operator[](unsigned int index)
+   	{
+   		return m_Buffer[index];
+   	}
+   
+   	friend std::ostream& operator<<(std::ostream& stream, const String& string);
+   };
+   ```
+
+3. 构建好了上面的类之后，假设我们想进行复制并修改string，主程序代码如下：
+
+   ```c++
+   int main()
+   {
+   	String string = "Melissa";
+   	String second = string;
+   
+   	std::cout << string << std::endl;
+   	std::cout << second << std::endl;
+   
+   	std::cin.get();
+   }
+   ```
+
+   运行到程序结束时突然报错
+
+   ![image-20211201145655364](E:\newbie\cpp_code\images\image-20211201145655364.png)
+
+   分析：通过调试发现，string和second的m_Buffer的内存地址是相同的，其实这种复制方式是浅复制，也就是只复制了`char* m_Buffer;`的指针而非内存中的值。那么当程序运行结束时会按顺序分别调用string和second的析构函数，第一次调用是m_Buffer还存在，会delete m_Buffer，当第二次调用时就会发现他已经被释放了，delete就会报错。
+
+   ![image-20211201145847048](E:\newbie\cpp_code\images\image-20211201145847048.png)
+
+   也就是说，当我们修改第二个String时是会根据地址到到相应内存进行修改，导致两个变量都变了。
+
+   ![image-20211201150927917](E:\newbie\cpp_code\images\image-20211201150927917.png)
+
+   总的来说浅拷贝不会查看对象的内部成员或者查看指针指向的地址内容，并复制其中的所有东西，因此导致了上面的一系列问题。
+
+### 37.3 深拷贝【创建copy constructor】
+
+上面浅拷贝的方式有诸多的不便，我们希望在复制时不光复制指针，而且复制指针指向的内容，重新开辟一块空间来存储内容，并把这块内存的地址留给新的指针。
+
+也就是说深拷贝会完整的复制整个对象，具体的操作就是创建一个copy constructor。
+
+`Copy Constructor`是一个构造函数，当该对象被复制时会自动调用该`复制构造函数`，它是在类中接受一个同类型常量引用的函数：
+
+```c++
+String(const String& other)
+	:m_Buffer(other.m_Buffer), m_Size(other.m_Size)
+{
+}
+```
+
+或者还可以使用`memcpy`函数：
+
+```c++
+String(const String& other)
+{
+    memcpy(this, &other, sizeof(String));
+}
+```
+
+如果我们不想这个类被复制呢可以直接将`Copy Constructor`删掉：
+
+```c++
+String(const String& other) = delete;
+```
+
+![image-20211201154857991](E:\newbie\cpp_code\images\image-20211201154857991.png)
+
+类成员有指针变量就得写深拷贝。
+
+```c++
+class String
+{
+private:
+	char* m_Buffer;
+	unsigned int m_Size;
+public:
+	String(const char* string)
+	{
+		m_Size = strlen(string);
+		m_Buffer = new char[m_Size];
+		memcpy(m_Buffer, string, m_Size);  //这里不确定string是否包含null
+		m_Buffer[m_Size] = 0;  //就手动在字符串后添加null
+	}
+
+	~String()
+	{
+		delete[] m_Buffer;
+	}
+
+	String(const String& other)
+		:m_Size(other.m_Size)
+	{
+		m_Buffer = new char[m_Size + 1];
+		memcpy(m_Buffer, other.m_Buffer, m_Size + 1);  //在这里就可以直接使用m_Size+1因为我们确定other是包含null的
+	}
+	
+	char& operator[](unsigned int index)
+	{
+		return m_Buffer[index];
+	}
+
+	friend std::ostream& operator<<(std::ostream& stream, const String& string);
+};
+```
+
+完善代码封装PrintString方法
+
+```c++
+#include <iostream>
+#include <string>
+
+class String
+{
+private:
+	char* m_Buffer;
+	unsigned int m_Size;
+public:
+	String(const char* string)
+	{
+		m_Size = strlen(string);
+		m_Buffer = new char[m_Size];
+		memcpy(m_Buffer, string, m_Size);
+		m_Buffer[m_Size] = 0;
+	}
+
+	~String()
+	{
+		delete[] m_Buffer;
+	}
+
+	String(const String& other)
+		:m_Size(other.m_Size)
+	{
+		std::cout << "Copied string!" << std::endl;
+		m_Buffer = new char[m_Size + 1];
+		memcpy(m_Buffer, other.m_Buffer, m_Size + 1);
+	}
+	
+	char& operator[](unsigned int index)
+	{
+		return m_Buffer[index];
+	}
+
+	friend std::ostream& operator<<(std::ostream& stream, const String& string);
+};
+
+std::ostream& operator<<(std::ostream& stream, const String& string)
+{
+	stream << string.m_Buffer;
+	return stream;
+}
+
+void PrintString(String string)
+{
+	std::cout << string << std::endl;
+}
+
+int main()
+{
+	String string = "Melissa";
+	String second = string;
+
+	second[1] = 'a';
+
+	PrintString(string);
+	PrintString(second);
+
+	std::cin.get();
+}
+```
+
+打印结果如下：发现string不光被显式复制了一次，还在我们不知道的情况下被复制了两次。
+
+![image-20211201172450122](E:\newbie\cpp_code\images\image-20211201172450122.png)
+
+其实是又`PrintString`导致的，它接收的参数是String本身，在接收到外部变量会先全部复制一份出来，然后再用这部分副本进行处理，导致上面多次调用copy constructor。为了说明`PrintString`话把所有参数都复制一份，给它增加一个参数，再次运行代码就会发现，copy constructor总共被多用了两次，而`PrintString`函数有两个参数，正好说明了这一点。
+
+![image-20211201175703586](E:\newbie\cpp_code\images\image-20211201175703586.png)
+
+为了避免这种我们只是使用这个变量但是并不修改它时额外复制导致的效率降低和内存占用，建议使用引用`const String&`
+
+```c++
+void PrintString(const String& string, const String& string2)
+{
+	std::cout << string << std::endl;
+}
+```
+
+此时会发现程序输出结果只调用了一次copy constructor。
+
+![image-20211201180036376](E:\newbie\cpp_code\images\image-20211201180036376.png)
+
+建议：在写函数时能使用const reference就使用，我们可以在函数内部决定到底要不要去复制这个对象，但是不要直接传入对象的的副本（这是自动的），太蠢了。const reference能够介绍大量没有的复制
 
 
 
