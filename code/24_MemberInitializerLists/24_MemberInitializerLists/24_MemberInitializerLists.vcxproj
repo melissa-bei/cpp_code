@@ -22,7 +22,7 @@
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{a4799e37-1c50-4520-a30d-8f8f061fc7e9}</ProjectGuid>
-    <RootNamespace>My24Memberinitializerlists</RootNamespace>
+    <RootNamespace>My24MemberInitializerLists</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
