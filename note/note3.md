@@ -1185,33 +1185,356 @@ Entity* e = new(c) Entity();
 
 
 
+### 32. Implicit conversion and the explicit keyword in c++
+
+c++中的隐式转换和显式关键字 
+
+### 32.1 Implicit conversion 隐式转换
+
+定义一个Entity类，有两个构造函数，分别接受std string和int作为参数，
+
+```c++
+#include <iostream>
+#include <string>
+
+class Entity
+{
+private:
+	std::string m_Name;
+	int m_Age;
+public:
+	Entity(const std::string& name)
+		:m_Name(name), m_Age(-1) {}
+	Entity(int age)
+		:m_Name("Unknown"), m_Age(age) {}
+};
+
+void PrintEntity(const Entity& entity)
+{
+}
+
+int main()
+{
+	Entity a("Melissa");
+	Entity b = std::string("Melissa");
+	Entity c(22);
+	Entity d = 22;
+	PrintEntity(22);
+	PrintEntity(Entity("Melissa"));
+	std::cin.get();
+}
+```
+
+通常我们通过`Entity a("Melissa");`和`Entity c(22);`来分别调用这两个构造函数，在c++中还有一种写法，是用等号，如`Entity d = 22;`，这里因为给定的22是整数会自动调用接受int为参数的构造函数。但是当我们尝试用等号来接收Melissa时发现报错如下：
+
+![image-20211130100922522](E:\newbie\cpp_code\images\image-20211130100922522.png)
+
+这里的问题是因为在一个语句中只允许做一次隐式转换。上面的赋值过程主要经历两个步骤，首因为Melissa本身是包含7个字符的const char array 而不是std string ，必须先进行一次类型转换，然后再调用接收std string的构造函数，这里涉及了两次操作Implicit conversion无法处理就会报错。当我们手动进行类型转换如下面的写法，就能解决这个问题，可以把字符串转为std string类型，或者直接把melissa包含在std::string或Entity中：
+
+```c++
+Entity b = std::string("Melissa");
+PrintEntity(Entity("Melissa"));
+```
+
+注意：虽然可以使用隐式转换但是不建议这么做。
+
+### 32.2 explicit
+
+指定了类的构造函数为`explicit`，也就是说它只能进行显示调用，隐式转换隐式调用都不起作用，相应的直接用等号去赋值的方法就会报错。
+
+![image-20211130103714342](E:\newbie\cpp_code\images\image-20211130103714342.png)
+
+通常在数学库中会使用explicit，当我们不想任何时候都把数字转化为向量，以保证代码更安全或什么的。但是不建议使用的经常使用，比如当我们构建级别较低的wapper时，希望进行手动操作或者处理意外地cast导致的bug。
 
 
 
+## 33. Operators and operator overloding in c++
 
+Operators就是我们再代码中写出来用来执行某种操作的符号。operator overloding允许我们去自定义会修改operator在程序中的作用，这个功能在Java中不支持，C#支持一部分，而C++是完全支持的。
 
+总的来说，operator就是函数，它不是通过给定函数名的方式，而是直接给定了一个符号。大多数情况下使用operator能够使代码看起来更简单。
 
+下面给出了一个基本示例，定义了一个包含两个float变量的`Vector2`，定义一个二维坐标点`position`、二维的速度`speed`、二维的提速向量`powerup`来实现位置的移动，为此需要给`Vector2`添加`加`和`乘`的函数来实现基本的提速和位移.
 
+```c++
+#include <iostream>
+#include <string>
 
+struct Vector2
+{
+	float X, Y;
 
+	Vector2(float x, float y)
+		:X(x), Y(y) {}
 
+	Vector2 Add(const Vector2& other) const
+	{
+		return Vector2(X + other.X, Y + other.Y);
+	}
 
+	Vector2 Multiply(const Vector2& other) const
+	{
+		return Vector2(X * other.X, Y * other.Y);
+	}
+};
 
+int main()
+{
+	Vector2 position(4.0f, 4.0f);  //位置
+	Vector2 speed(0.5f, 1.5f);  //速度
+	Vector2 powerup(1.1f, 1.1f);  //提速后速率
 
+	Vector2 result = position.Add(speed.Multiply(powerup));
 
+	std::cin.get();
+}
+```
 
+但是第28行的写法还是过于繁琐，如果能用简单的`+`和`*`来进行处理就显得简洁的多，如下面一行代码所示：
 
+```c++
+Vector2 result = position + speed * powerup;
+```
 
+我们也想直接用操作符来进行Veator2的加减乘除操作，并满足运算规律，比如乘除级别高于加减等，最后再返回Vector2。
 
+比如，重载操作符+，用它调用Add方法：
 
+```c++
+struct Vector2
+{
+	float X, Y;
 
+	Vector2(float x, float y)
+		:X(x), Y(y) {}
 
+	Vector2 Add(const Vector2& other) const
+	{
+		return Vector2(X + other.X, Y + other.Y);
+	}
 
+	Vector2 operator+(const Vector2& other) const  //重载操作符+，用它调用Add方法
+	{
+		return Add(other);
+	}
 
+	Vector2 Multiply(const Vector2& other) const
+	{
+		return Vector2(X * other.X, Y * other.Y);
+	}
+};
+```
 
+也可以把Add方法的操作直接在重载操作符中执行，然后Add方法再去调用操作符：
 
+```c++
+struct Vector2
+{
+	float X, Y;
 
+	Vector2(float x, float y)
+		:X(x), Y(y) {}
 
+	Vector2 Add(const Vector2& other) const
+	{
+		return operator+(other);
+        //return *this + other;
+	}
 
+	Vector2 operator+(const Vector2& other) const
+	{
+		return Vector2(X + other.X, Y + other.Y);
+	}
 
+	Vector2 Multiply(const Vector2& other) const
+	{
+		return Vector2(X * other.X, Y * other.Y);
+	}
+};
+```
 
+两种方式中，作者更建议第一种，因为给其他的开发者提供了两种可选的用法。最终结构体如下：
+
+```c++
+struct Vector2
+{
+	float X, Y;
+
+	Vector2(float x, float y)
+		:X(x), Y(y) {}
+
+	Vector2 Add(const Vector2& other) const
+	{
+		return Vector2(X + other.X, Y + other.Y);
+	}
+
+	Vector2 operator+(const Vector2& other) const
+	{
+		return Add(other);
+	}
+
+	Vector2 Multiply(const Vector2& other) const
+	{
+		return Vector2(X * other.X, Y * other.Y);
+	}
+
+	Vector2 operator*(const Vector2& other) const
+	{
+		return Multiply(other);
+	}
+};
+```
+
+当我们想输出的时候会发现，std::cout并不能输出Vector2类型的数据，会报错如下：
+
+![image-20211130113944919](E:\newbie\cpp_code\images\image-20211130113944919.png)
+
+就需要我们去重载`<<`：
+
+```c++
+std::ostream& operator<<(std::ostream& stream, const Vector2& other)
+{
+	stream << other.X << ", " << other.Y;
+	return stream;
+}
+```
+
+该重载需要接收一个std::ostream，也就是`std::cout`，然后接收一个Veator2，使用stream把Veator2的两个成员属性输出，最后返回std::ostream，也就是`std::cout`。
+
+完整代码如下：
+
+```c++
+#include <iostream>
+#include <string>
+
+struct Vector2
+{
+	float X, Y;
+
+	Vector2(float x, float y)
+		:X(x), Y(y) {}
+
+	Vector2 Add(const Vector2& other) const
+	{
+		return Vector2(X + other.X, Y + other.Y);
+	}
+
+	Vector2 operator+(const Vector2& other) const
+	{
+		return Add(other);
+	}
+
+	Vector2 Multiply(const Vector2& other) const
+	{
+		return Vector2(X * other.X, Y * other.Y);
+	}
+
+	Vector2 operator*(const Vector2& other) const
+	{
+		return Multiply(other);
+	}
+};
+
+std::ostream& operator<<(std::ostream& stream, const Vector2& other)
+{
+	stream << other.X << ", " << other.Y;
+	return stream;
+}
+
+int main()
+{
+	Vector2 position(4.0f, 4.0f);  //位置
+	Vector2 speed(0.5f, 1.5f);  //速度
+	Vector2 powerup(1.1f, 1.1f);  //提速后速率
+
+	Vector2 result = position.Add(speed.Multiply(powerup));
+	Vector2 result2 = position + speed * powerup;
+
+	std::cout << result << std::endl;
+
+	std::cin.get();
+}
+```
+
+输出结果如下图：
+
+![image-20211130114627160](E:\newbie\cpp_code\images\image-20211130114627160.png)
+
+**注意：即使可以去重载操作符，但还是不建议这么做，会影响代码阅读效果。**
+
+我们重载的`<<`操作符有点像在Java或C#中会写的ToString方法，这就是c++的特色之处，我们不光能定义函数，还可以重载操作符。
+
+另外一点，c++支持`==`操作符，Java不支持，在Java中必须写`equals`来进行比较，下面举例来重载`==`和`!=`：
+
+```c++
+#include <iostream>
+#include <string>
+
+struct Vector2
+{
+	float X, Y;
+
+	Vector2(float x, float y)
+		:X(x), Y(y) {}
+
+	Vector2 Add(const Vector2& other) const
+	{
+		return Vector2(X + other.X, Y + other.Y);
+	}
+
+	Vector2 operator+(const Vector2& other) const
+	{
+		return Add(other);
+	}
+
+	Vector2 Multiply(const Vector2& other) const
+	{
+		return Vector2(X * other.X, Y * other.Y);
+	}
+
+	Vector2 operator*(const Vector2& other) const
+	{
+		return Multiply(other);
+	}
+
+	bool operator==(const Vector2& other) const
+	{
+		return X == other.X && Y == other.Y;
+	}
+
+	bool operator!=(const Vector2& other) const
+	{
+		return !(*this == other);
+		//return !operator==(other);  //不建议这么写，很奇怪
+	}
+};
+
+std::ostream& operator<<(std::ostream& stream, const Vector2& other)
+{
+	stream << other.X << ", " << other.Y;
+	return stream;
+}
+
+int main()
+{
+	Vector2 position(4.0f, 4.0f);  //位置
+	Vector2 speed(0.5f, 1.5f);  //速度
+	Vector2 powerup(1.1f, 1.1f);  //提速后速率
+
+	Vector2 result = position.Add(speed.Multiply(powerup));
+	Vector2 result2 = position + speed * powerup;
+
+	std::cout << result << std::endl;
+
+	if (result == result2)
+	{
+		std::cout << "true" << std::endl;
+	}
+	else
+	{
+		std::cout << "false" << std::endl;
+	}
+
+	std::cin.get();
+}
+```
