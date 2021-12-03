@@ -1185,7 +1185,7 @@ Entity* e = new(c) Entity();
 
 
 
-### 32. Implicit conversion and the explicit keyword in c++
+## 32. Implicit conversion and the explicit keyword in c++
 
 c++中的隐式转换和显式关键字 
 

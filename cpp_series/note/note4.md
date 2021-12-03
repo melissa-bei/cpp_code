@@ -591,5 +591,142 @@ void PrintString(const String& string, const String& string2)
 
 
 
+## 38. The arrow operator
+
+当一个对象是指针时，无论是用一个指针指向创建好的实例，还是这个实例被创建在heap上，因为目前要操作的对象市镇，所以是不能直接调用类的方法的，必须要用到`->`。
+
+`->`是将一个指针对象进行**反引用**得到一个实际的对象，然后再调用他的成员属性或成员函数。90%的情况下都这么使用。
+
+```c++
+#include <iostream>
+#include <string>
+
+
+class Entity
+{
+public:
+	int a;
+	void print() const { std::cout << "Hello!" << std::endl; }
+};
+
+int main()
+{
+	Entity e;
+	e.print();
+
+	Entity* ptr = &e;
+	ptr->print();
+	ptr->a;
+
+	std::cin.get();
+}
+```
+
+但是有时候我们会想重写`->`，下面来介绍什么时候我们会想重写箭头操作符，然后应用在自己的类中，以及我们该如何重写。
+
+```c++
+#include <iostream>
+#include <string>
+
+
+class Entity
+{
+public:
+	int a;
+	void print() const { std::cout << "Hello!" << std::endl; }
+};
+
+class ScopePtr
+{
+private:
+	Entity* m_Obj;
+public:
+	ScopePtr(Entity* entity)
+		:m_Obj(entity) {}
+
+	~ScopePtr()
+	{
+		delete m_Obj;
+	}
+
+	Entity* operator->() const
+	{
+		return m_Obj;
+	}
+};
+
+int main()
+{
+	const ScopePtr entity = new Entity();
+	entity->print();
+
+	std::cin.get();
+}
+```
+
+### Extra
+
+最后一个使用arrow的场景，用来获取成员属性的地址偏移量。
+
+```c+++
+#include <iostream>
+#include <string>
+
+struct Vector3
+{
+	float x, y, z;
+};
+
+int main()
+{
+	int offset = (int)&((Vector3*)0)->z;
+	std::cout << offset << std::endl;
+
+	std::cin.get();
+}
+```
+
+
+
+## 39. Dynamic array in C++ ？？？？？？？？？
+
+标准库的vector增加元素需要先申请一个更大的内存空间将原来的内容复制过去，并将原来的空间释放
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
