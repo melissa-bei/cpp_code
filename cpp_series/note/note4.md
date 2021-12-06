@@ -688,45 +688,278 @@ int main()
 
 
 
-## 39. Dynamic array in C++ ？？？？？？？？？
+## 39. Dynamic array in C++
 
-标准库的vector增加元素需要先申请一个更大的内存空间将原来的内容复制过去，并将原来的空间释放
+Dynamic array在C++标准库中定义为vector。既然现在我们能在C++中写一定体量的程序了，很重要的一点是我们要回自定义一些C++标准库，在这种情况下也可以称为标准模板库。
+
+标准模板库本质上是包含了很多container的库，container类型，就是包含了特定类型数据的container就叫做标准模板库，因为他可以模板化为任何东西。模板的意思是，容器包含的底层数据类型就开发者决定。
+
+template是什么以后会讲到，这里我们只需要会用template就行，我们只需要提供底层数据类型。
+
+### 39.1 什么是Vector
+
+标准库的vector实现变长的原理是，当添加的元素超过现在array的大小时，会先申请一个更大的内存空间，将原来的内容复制过去，最后将原来的空间释放，即创建一个比原来空间更大的array来存放现在array的副本并替代原来的array。
+
+但实际上它会经常重新分配空间，导致效率不是很理想。因此，本节只是简单讲解std::vector是什么，下一节再讲如何去合理的应用它。
+
+之前我们使用new创建数组，必须指定array的长度size，访问存储时索引只能是0到(size-1)，当我们访问超过size的空间时就会出错。
+
+```c++
+Vertex* vertices = new Vertex[5];
+vertices[4];
+//vertices[5];
+```
+
+![image-20211206102711288](E:\newbie\cpp_code\cpp_series\images\image-20211206102711288.png)
+
+也就是说new创建的定长的array，不能存入超过array长度的元素。但是我们非要存入不知道多少个元素到array里，一种解决办法是给array分配超级多的空间，但是这又会造成资源浪费，这事就引出了我们的主角`vector`。
+
+```c++
+#include <iostream>
+#include <string>
+#include <vector>  //导入vector
+
+struct Vectex
+{
+	float x, y, z;
+};
+
+std::ostream& operator<<(std::ostream& stream, Vectex vectex)
+{
+	stream << vectex.x << ", " << vectex.y << ", " << vectex.z;
+	return stream;
+}
+
+int main()
+{
+	Vectex* vertices = new Vectex[5];
+	vertices[0] = Vectex({1, 2, 3 });
+
+	std::vector<Vectex> vertices2;
+	vertices2.push_back({ 1, 2, 3 });
+	vertices2.push_back({ 4, 5, 6 });
+	for (int i = 0; i < vertices2.size(); i++)
+		std::cout << vertices2[i] << std::endl;
+
+	//vertices2.clear();
+	vertices2.erase(vertices2.begin());
+
+	for (Vectex& v : vertices2)
+		std::cout << v << std::endl;
+	std::cin.get();
+}
+```
+
+vector用法：`std::vector<C++类 或者 raw 类型> 变量名;`，要注意这里存储的不是一系列指针（new中存储的是指针），而是直接存储Vertex。同样这里在vector中直接存储Vertex还是在heap中创建对象veator中只存放指针地址，得视情况而定。
+
+```c++
+std::vector<Vectex> vertices2;
+std::vector<int> int2;
+```
+
+严格来说存储Vertex对象要比指针更合适，因为如果存储的是对象，内存的排列方式是线性的，动态array因为时array理论上来说他们的内存应该是连续的，不应该是分散的。线性排列的array更便于迭代、批量设置、批量修改等操作，因为他们会在同一个cache line。
+
+它唯一的缺点是当分配的空间不够用时，需要分配新的空间，并且复制原来数据，比如我们有一个存储string的array，那么他就会经常进行resize操作。移动而不是复制解决了这个特定的问题，但仍然存在一些不理想的复制。  
+
+像vector中添加元素：
+
+```c++
+vertices2.push_back({ 1, 2, 3 });
+```
+
+遍历显示所有元素：在c++中还提供了方括号操作符进行索引
+
+```c++
+for (int i = 0; i < vertices2.size(); i++)
+	std::cout << vertices2[i] << std::endl;
+```
+
+还有另一种遍历方式：这里用的是引用以避免多余的复制
+
+```c++
+for (Vectex& v : vertices2)
+	std::cout << v << std::endl;
+```
+
+清理vector：会将vector的size改回0
+
+```c++
+vertices2.clear();
+```
+
+或者：`erase`必须接受一个可迭代对象
+
+```c++
+vertices2.erase(vertices2.begin() + 1);  //抹掉第二个元素
+vertices2.erase(vertices2.begin());  //抹掉第一个元素
+```
+
+而且注意将vector传入函数时一定要传入引用，避免多余的复制。
+
+### 39.2 最大化利用std::vector
+
+为了查看并说明vector的复制原理、时机以及为什么会复制，以便于我们避免无谓的复制，我们需要创建复制构造函数：
+
+```c++
+struct Vectex
+{
+	float x, y, z;
+
+	Vectex()
+	{}
+
+	Vectex(float x, float y, float z)
+		:x(x), y(y), z(z)
+	{
+	}
+
+	Vectex(const Vectex& vertex)  //复制构造函数
+		:x(vertex.x), y(vertex.y), z(vertex.z)
+	{
+		std::cout << "Copied!" << std::endl;
+	}
+};
+```
+
+主程序中执行下面示例会发现Copied被打印了六次，
+
+```c++
+int main()
+{
+	std::vector<Vectex> vertices2;
+	vertices2.push_back({ 1, 2, 3 });
+	vertices2.push_back({ 4, 5, 6 });
+	vertices2.push_back({ 7, 8, 9 });
+
+	std::cin.get();
+}
+```
+
+![image-20211206154834350](E:\newbie\cpp_code\cpp_series\images\image-20211206154834350.png)
+
+当执行完第四行会打印一次Copied，这是因为第三行中当我们构造Vertex时只是在主程序的stack中先构造了临时的变量，然后我们需要这个Vertex放到vector的内存中，也就是说需要copy构造好的vertex到vector实际开辟的空间中，这是第一次复制也是我们可以优化的地方。
+
+> **第一个优化点：直接在vector开辟的空间中去构造新的对象。**
+
+然后执行第五行，打印了两次Copied，前一行中我们已经知道有一个Copied是来自于主程序stack中构造的临时变量复制到vector。另外一次则来自于vector重新分配空间，然后将原来存储在vector中的数据全部复制到新内存中，因为原来vector中只保存了一个Vertex对象，所以至多出了一次复制。
+
+当执行第六行时，会多打印出三次Copied，一次来自于临时变量，另两次来自于旧的vector复制到新的内存空间。同理如果再添加一个元素，就会再多打印四次Copied。
+
+这里我们观察发现，vector每次只扩容一个对象，这是默认的设置，如果我们最开始可能知道大概要三个对象，能否一开始就分配三个空间呢？
+
+> 第二个优化点：即这里扩充的策略数不是1，能不能设置为别的数呢？预留一些空间呢？
+
+```c++
+int main()
+{
+	std::vector<Vectex> vertices2;
+	vertices2.reserve(3);  //可以通过reserve预留三个元素的空间
+	vertices2.push_back({ 1, 2, 3 });
+	vertices2.push_back({ 4, 5, 6 });
+	vertices2.push_back({ 7, 8, 9 });
+	vertices2.push_back({ 10, 11, 12 });
+    
+	std::cin.get();
+}
+```
+
+既然第四行和第三行很像，那能不能在构造vector时直接开辟可包含三个元素的空间出来呢？
+
+```c++
+ std::vector<Vectex> vertices2(3);
+```
+
+如上面代码所示，上述的构造方式会在构造之时就直接创建三个Vertex对象出来，而并非时只是预留出三个空间出来。
+
+或过头来解决第一个优化点，使用emplace_back方法而不是使用push_back方法，即直接在vector中去构造新的对象，避免复制。这种情况下不只是直接去传入一个Vertex对象，而是直接把数据传进去。
+
+```c++
+int main()
+{
+	std::vector<Vectex> vertices2;
+	vertices2.reserve(3);
+	vertices2.emplace_back(1, 2, 3 );
+	vertices2.emplace_back(4, 5, 6 );
+	vertices2.emplace_back(7, 8, 9 );
+	//vertices2.push_back({ 10, 11, 12 });
+
+	std::cin.get();
+}
+```
+
+打印结果中就没有额外的复制了。
 
 
 
+## 40. Using libraries in C++
 
+### 40.1 Static Linking
 
+#### 40.1.1 库的介绍（以glfw为例）
 
+一个库通常有两部分，`include`和`lib`，其中include种存放的是一堆header files，是我们在使用预编译文件中的函数时需要用到的；lib中存放的是那些预编译二进制文件，他同成分为两种，动态库（dynamic library）和静态库（static library）。
 
+静态库简单来说就是把头文件中的内容复制到可执行文件中；而动态库连接到runtime。
 
+在项目路径下创建`Dependencies`文件夹，在该文件夹中创建`GLFW`文件夹，将下载下来的包的`include`和`lib-vc2019`复制到该文件夹下。
 
+![image-20211207102238051](E:\newbie\cpp_code\cpp_series\images\image-20211207102238051.png)
 
+其中`include`中有一个GLFW文件夹，包含两个头文件：
 
+![image-20211207102450671](E:\newbie\cpp_code\cpp_series\images\image-20211207102450671.png)
 
+`lib-vc2019`中有三个lib文件，一个dll文件：
 
+![image-20211207102631584](E:\newbie\cpp_code\cpp_series\images\image-20211207102631584.png)
 
+`glfw3.dll`是一次性动态链接库，是我们在runtime动态链接过程中用到的
 
+`glfw3dll.lib`是 dll 文件用到的静态链接库，以便于不需要向 dll 请求一堆函数指针，这个文件中包含了所有 dll 文件中函数和符号的位置，方便我们在编译时能够链接到他们。如果没有这个lib文件，我们也可以调用函数，但就必须向 dll 以名字进行获取，但是lib文件因为已经包含了函数的位置，就能够直接连接。
 
+`glfw3.lib`是静态库，他明显大于上面两个文件，这是我们需要进行链接的文件如果我们不想再runtime进行链接操作，那么我们也就不需要上面的dll文件在runtime中没有exe文件。
 
+接下来，我们具体操作如何链接静态库。
 
+#### 40.1.2 配置include文件夹
 
+**右键项目-->进入属性页-->配置属性-->C/C++-->常规-->附加包含目录-->配置 所有配置-->填入include文件夹路径（使用基于项目的相对路径：$(SolutionDir)\Dependencies\GLFW\include）-->引用（#include "GLFW/glfw3.h"）**
 
+include的时候使用的是双引号。当项目中包含这个头文件推荐使用双引号，即会先在项目路径下找相应头文件找不到了再去查看编译器环境中有没有这个文件；项目中不包含这个头文件，他在其他项目中或者c++标准库中不是在这个项目中被一起编译的，是外部依赖，建议使用尖括号，让编译器在所有的环境路径中去寻找。
 
+执行下面代码，发现报错
 
+```c++
+#include <iostream>
+#include "GLFW/glfw3.h"
 
+int main()
+{
+	int a = glfwInit();
 
+	std::cin.get();
+}
+```
 
+![image-20211207105808537](E:\newbie\cpp_code\cpp_series\images\image-20211207105808537.png)
 
+这是因为源代码中只是声明了这个函数存在，并没有定义，我们需要找到它的定义，也就是连接到实际的lib文件。
 
+![image-20211207105912450](E:\newbie\cpp_code\cpp_series\images\image-20211207105912450.png)
 
+#### 40.1.3 配置lib文件夹
 
+**右键项目-->进入属性页-->配置属性-->链接器-->常规-->附加包含目录-->配置 所有配置-->填入lib文件夹路径（使用基于项目的相对路径：$(SolutionDir)\Dependencies\GLFW\lib-vc2019）-->链接器-->输入-->`glfw3.lib`**
 
+连接完成编译就成功了。
 
+#### Extra
 
+当我们去掉头文件`#include "GLFW/glfw3.h"`时，就不知道有这个`glfwInit`函数是可用的，它会直接编译错误。
 
+![image-20211207111345395](E:\newbie\cpp_code\cpp_series\images\image-20211207111345395.png)
 
+但是如果我们在该文件中添加`glfwInit`的声明，它是可以编译的，但是无法链接，是因为glfw是一个基于C的库，但是我们却是用C++的方式来进行声明。后面会讲到如何在c++中使用c，在这里需要给他的生命前加上外部的标识符`extern "C" int glfwInit();`，代码就可以正常运行了，其实就是把这个函数名保留给由C编写的库
 
-
-
-
+![image-20211207111516528](E:\newbie\cpp_code\cpp_series\images\image-20211207111516528.png)
 
