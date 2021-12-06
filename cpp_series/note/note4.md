@@ -688,25 +688,206 @@ int main()
 
 
 
-## 39. Dynamic array in C++ ？？？？？？？？？
+## 39. Dynamic array in C++
 
-标准库的vector增加元素需要先申请一个更大的内存空间将原来的内容复制过去，并将原来的空间释放
+Dynamic array在C++标准库中定义为vector。既然现在我们能在C++中写一定体量的程序了，很重要的一点是我们要回自定义一些C++标准库，在这种情况下也可以称为标准模板库。
 
+标准模板库本质上是包含了很多container的库，container类型，就是包含了特定类型数据的container就叫做标准模板库，因为他可以模板化为任何东西。模板的意思是，容器包含的底层数据类型就开发者决定。
 
+template是什么以后会讲到，这里我们只需要会用template就行，我们只需要提供底层数据类型。
 
+### 39.1 什么是Vector
 
+标准库的vector实现变长的原理是，当添加的元素超过现在array的大小时，会先申请一个更大的内存空间，将原来的内容复制过去，最后将原来的空间释放，即创建一个比原来空间更大的array来存放现在array的副本并替代原来的array。
 
+但实际上它会经常重新分配空间，导致效率不是很理想。因此，本节只是简单讲解std::vector是什么，下一节再讲如何去合理的应用它。
 
+之前我们使用new创建数组，必须指定array的长度size，访问存储时索引只能是0到(size-1)，当我们访问超过size的空间时就会出错。
 
+```c++
+Vertex* vertices = new Vertex[5];
+vertices[4];
+//vertices[5];
+```
 
+![image-20211206102711288](E:\newbie\cpp_code\cpp_series\images\image-20211206102711288.png)
 
+也就是说new创建的定长的array，不能存入超过array长度的元素。但是我们非要存入不知道多少个元素到array里，一种解决办法是给array分配超级多的空间，但是这又会造成资源浪费，这事就引出了我们的主角`vector`。
 
+```c++
+#include <iostream>
+#include <string>
+#include <vector>  //导入vector
 
+struct Vectex
+{
+	float x, y, z;
+};
 
+std::ostream& operator<<(std::ostream& stream, Vectex vectex)
+{
+	stream << vectex.x << ", " << vectex.y << ", " << vectex.z;
+	return stream;
+}
 
+int main()
+{
+	Vectex* vertices = new Vectex[5];
+	vertices[0] = Vectex({1, 2, 3 });
 
+	std::vector<Vectex> vertices2;
+	vertices2.push_back({ 1, 2, 3 });
+	vertices2.push_back({ 4, 5, 6 });
+	for (int i = 0; i < vertices2.size(); i++)
+		std::cout << vertices2[i] << std::endl;
 
+	//vertices2.clear();
+	vertices2.erase(vertices2.begin());
 
+	for (Vectex& v : vertices2)
+		std::cout << v << std::endl;
+	std::cin.get();
+}
+```
+
+vector用法：`std::vector<C++类 或者 raw 类型> 变量名;`，要注意这里存储的不是一系列指针（new中存储的是指针），而是直接存储Vertex。同样这里在vector中直接存储Vertex还是在heap中创建对象veator中只存放指针地址，得视情况而定。
+
+```c++
+std::vector<Vectex> vertices2;
+std::vector<int> int2;
+```
+
+严格来说存储Vertex对象要比指针更合适，因为如果存储的是对象，内存的排列方式是线性的，动态array因为时array理论上来说他们的内存应该是连续的，不应该是分散的。线性排列的array更便于迭代、批量设置、批量修改等操作，因为他们会在同一个cache line。
+
+它唯一的缺点是当分配的空间不够用时，需要分配新的空间，并且复制原来数据，比如我们有一个存储string的array，那么他就会经常进行resize操作。移动而不是复制解决了这个特定的问题，但仍然存在一些不理想的复制。  
+
+像vector中添加元素：
+
+```c++
+vertices2.push_back({ 1, 2, 3 });
+```
+
+遍历显示所有元素：在c++中还提供了方括号操作符进行索引
+
+```c++
+for (int i = 0; i < vertices2.size(); i++)
+	std::cout << vertices2[i] << std::endl;
+```
+
+还有另一种遍历方式：这里用的是引用以避免多余的复制
+
+```c++
+for (Vectex& v : vertices2)
+	std::cout << v << std::endl;
+```
+
+清理vector：会将vector的size改回0
+
+```c++
+vertices2.clear();
+```
+
+或者：`erase`必须接受一个可迭代对象
+
+```c++
+vertices2.erase(vertices2.begin() + 1);  //抹掉第二个元素
+vertices2.erase(vertices2.begin());  //抹掉第一个元素
+```
+
+而且注意将vector传入函数时一定要传入引用，避免多余的复制。
+
+### 39.2 最大化利用std::vector
+
+为了查看并说明vector的复制原理、时机以及为什么会复制，以便于我们避免无谓的复制，我们需要创建复制构造函数：
+
+```c++
+struct Vectex
+{
+	float x, y, z;
+
+	Vectex()
+	{}
+
+	Vectex(float x, float y, float z)
+		:x(x), y(y), z(z)
+	{
+	}
+
+	Vectex(const Vectex& vertex)  //复制构造函数
+		:x(vertex.x), y(vertex.y), z(vertex.z)
+	{
+		std::cout << "Copied!" << std::endl;
+	}
+};
+```
+
+主程序中执行下面示例会发现Copied被打印了六次，
+
+```c++
+int main()
+{
+	std::vector<Vectex> vertices2;
+	vertices2.push_back({ 1, 2, 3 });
+	vertices2.push_back({ 4, 5, 6 });
+	vertices2.push_back({ 7, 8, 9 });
+
+	std::cin.get();
+}
+```
+
+![image-20211206154834350](E:\newbie\cpp_code\cpp_series\images\image-20211206154834350.png)
+
+当执行完第四行会打印一次Copied，这是因为第三行中当我们构造Vertex时只是在主程序的stack中先构造了临时的变量，然后我们需要这个Vertex放到vector的内存中，也就是说需要copy构造好的vertex到vector实际开辟的空间中，这是第一次复制也是我们可以优化的地方。
+
+> **第一个优化点：直接在vector开辟的空间中去构造新的对象。**
+
+然后执行第五行，打印了两次Copied，前一行中我们已经知道有一个Copied是来自于主程序stack中构造的临时变量复制到vector。另外一次则来自于vector重新分配空间，然后将原来存储在vector中的数据全部复制到新内存中，因为原来vector中只保存了一个Vertex对象，所以至多出了一次复制。
+
+当执行第六行时，会多打印出三次Copied，一次来自于临时变量，另两次来自于旧的vector复制到新的内存空间。同理如果再添加一个元素，就会再多打印四次Copied。
+
+这里我们观察发现，vector每次只扩容一个对象，这是默认的设置，如果我们最开始可能知道大概要三个对象，能否一开始就分配三个空间呢？
+
+> 第二个优化点：即这里扩充的策略数不是1，能不能设置为别的数呢？预留一些空间呢？
+
+```c++
+int main()
+{
+	std::vector<Vectex> vertices2;
+	vertices2.reserve(3);  //可以通过reserve预留三个元素的空间
+	vertices2.push_back({ 1, 2, 3 });
+	vertices2.push_back({ 4, 5, 6 });
+	vertices2.push_back({ 7, 8, 9 });
+	vertices2.push_back({ 10, 11, 12 });
+    
+	std::cin.get();
+}
+```
+
+既然第四行和第三行很像，那能不能在构造vector时直接开辟可包含三个元素的空间出来呢？
+
+```c++
+ std::vector<Vectex> vertices2(3);
+```
+
+如上面代码所示，上述的构造方式会在构造之时就直接创建三个Vertex对象出来，而并非时只是预留出三个空间出来。
+
+或过头来解决第一个优化点，使用emplace_back方法而不是使用push_back方法，即直接在vector中去构造新的对象，避免复制。这种情况下不只是直接去传入一个Vertex对象，而是直接把数据传进去。
+
+```c++
+int main()
+{
+	std::vector<Vectex> vertices2;
+	vertices2.reserve(3);
+	vertices2.emplace_back(1, 2, 3 );
+	vertices2.emplace_back(4, 5, 6 );
+	vertices2.emplace_back(7, 8, 9 );
+	//vertices2.push_back({ 10, 11, 12 });
+
+	std::cin.get();
+}
+```
+
+打印结果中就没有额外的复制了。
 
 
 
